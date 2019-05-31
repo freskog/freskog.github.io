@@ -118,9 +118,12 @@ The way ZIO solves this is build a description of what IO actions to perform as 
 #### Publisher
 
 A producer is what the **partition** function returns wrapped inside of ZIO, and as we recall the inner type was **A => UIO[Boolean]**.
+The **Boolean** is a way of letting the caller of the producer function know if the submitted work was accepted or not. This is
+our way of implementing back pressure, force the caller to decide what to do if they exceed their limit.
+
 The standard way of decoupling a producer from a consumer is to put a message onto a queue. We'll do exactly that here as well.
 STM provides a queue that can participate in transactions, it's called TQueue. We can easily write a function that will publish to
-a queue if it's not already full.
+a queue if it's not already full, and let us return if the message was published or not.
 
 {% highlight scala %}
 
@@ -141,7 +144,7 @@ Our consumer was defined as a function of type **A => UIO[Unit]**. We need to li
 action to take once the transaction commits.
 
 This consumer needs to run in it's own Fiber (a fiber in ZIO models a running computation, much like how Future does,
- but the ZIO runtime will use green threads instead of actual threads). 
+ but the ZIO runtime uses green threads instead of actual threads). 
 
 Basically the workflow for the consumer is
 1. Take a message from the queue or timeout if there are no more messages, 
@@ -152,41 +155,38 @@ Basically the workflow for the consumer is
 {% highlight scala %}
 
 def debug(cause: Exit.Cause[String]): ZIO[Console, Nothing, Unit] =
- console.putStrLn(cause.failures.mkString("\n\t") + 
-   cause.defects.mkString("\n\t"))
-                
-def takeNextMessageOrTimeout(id: PartId, queue: TQueue[A]): ZIO[Clock, String, A] =
- queue.take.commit.timeoutFail(s"$id was retired")(Duration(2, SECONDS))
+  putStrLn(cause.failures.mkString("\n\t") + cause.defects.mkString("\n\t"))
 
-def safelyPerformAction(id: PartId, action: A => UIO[Unit]): A => ZIO[Console with Clock, Nothing, Unit] =
- action(_).timeoutFail(s"$id action timed out")(Duration(3, SECONDS))
-  .sandbox.catchAll(debug)
+def takeNextMessageOrTimeout[A](id: PartId, queue: TQueue[A]): ZIO[Clock with Conf, String, A] =
+  idleTTL flatMap queue.take.commit.timeoutFail(s"$id consumer expired")
 
-def startConsumer(id:PartId, queue: TQueue[A], cleanup:UIO[Unit], action: A => UIO[Unit]): ZIO[Console with Clock, Nothing, Unit] =
- (takeNextMessageOrTimeout(id, queue) flatMap safelyPerformAction(id, action))
-  .forever.ensuring(cleanup).fork.unit
+def safelyPerformAction[A](id: PartId, action: A => UIO[Unit])(a:A): ZIO[PartEnv, Nothing, Unit] =
+  (userTTL flatMap (action(a).timeoutFail(s"$id action timed out")(_))).sandbox.catchAll(debug)
+
+def startConsumer[A](id:PartId, queue: TQueue[A], cleanup:UIO[Unit], action: A => UIO[Unit]): ZIO[PartEnv, Nothing, Unit] =
+  (takeNextMessageOrTimeout(id, queue) flatMap safelyPerformAction(id, action)).forever.ensuring(cleanup).fork.unit
 
 {% endhighlight %}
 
-For people used to working primarily with Futures, it's probably surprising to see the call to timeout after we've called commit. With ZIO
+For people used to working primarily with Futures, it's probably surprising to see the call to timeoutFail after we've called commit. With ZIO
 we're dealing with descriptions of programs rather than running programs (the closest equivalent to a Future is as mentioned previously a Fiber in ZIO).
 
-When we're working with STM[E,A] or ZIO[R,E,A]/IO[E,A]/UIO[A] we're always just manipulating a value. That value is a description of a 
+When we're working with **STM[E,A]** or **ZIO[R,E,A]**/**IO[E,A]**/**UIO[A]** we're always just manipulating a value. That value is a description of a 
 transaction/program.
 
 To make this a little clearer, let's go through the takeNextMessageOrTimeout method in more detail
 
-| Expression      | Type before           | Type after            | Effect                                                                        |
-|-----------------|-----------------------|-----------------------|-------------------------------------------------------------------------------|
-| queue           |                       | TQueue[A]             |                                                                               |
-| take            | TQueue[A]             | STM[Nothing,A]        | Part of a transaction that takes a message of type A from the queue           |
-| commit          | STM[Nothing,A]        | UIO[A]                | A program producing a value of type A from the committed transaction          |
-| timeoutFail(..) | UIO[A]                | ZIO[Clock, String, A] | A program using Clock, which either fails with a String or succeeds with an A |
+| Expression      | Type before           | Type after                      | Effect                                                                        |
+|-----------------|-----------------------|---------------------------------|-------------------------------------------------------------------------------|
+| idleTTL         |                       | ZIO[Conf, Nothing, Duration]    | Will return the timeout value for how long we can wait for a message          |
+| queue           |                       | TQueue[A]                       |                                                                               |
+| take            | TQueue[A]             | STM[Nothing,A]                  | Part of a transaction that takes a message of type A from the queue           |
+| commit          | STM[Nothing,A]        | ZIO[Conf, Nothing, A]           | A program using Clock, producing an A from the committed transaction          |
+| timeoutFail(..) | ZIO[Conf, Nothing, A] | ZIO[Clock with Conf, String, A] | A program using Clock & Conf, either failing with String or succeeding with A |
 
 
-The final signature tells us quite a bit, this function needs a Clock provided to it before it can be run, and when it is run it will either
-fail with a String or succeed with an A. We can use a different implementation of the Clock service for testing (there is a test kit for ZIO
-that contains a suitable implementation).
+The final signature tells us quite a bit, this function needs a Clock and a Conf provided to it before it can be run, and when it is run it will either
+fail with a String or succeed with an A. 
 
 Another surprising thing might be the return type of safelyPerformAction, where the return type indicates that it can not fail. This is because of
 us *sandbox*ing all failures and defects, which we then just log using our debug method. The end result still requires a Clock.
@@ -205,125 +205,101 @@ create a queue, start a consumer and publish a message for each new partition it
 as a **Map[PartId,TQueue[A]]**. Because the consumers can come and go, we need to make sure that this map can participate in transactions.
 This means we need to introduce the **TRef[A]** type.
 
-We'll ask who ever calls into us to provide a premade workQueues of type **TRef[Map[PartId,TQueue[A]]**, and to supply an env
-of type  **Console with Clock**.
+Because long types like **TRef[Map[PartId,TQueue[A]]]** can be hard to read, I've replaced it with a type alias called **Queues[A]**, and another type alias
+**PartEnv** for **Conf with Clock with Console**
 
 Let's look at the code
 
 {% highlight scala %}
 
-def hasConsumer(id:PartId):STM[Nothing, Boolean] =
- workQueues.get.map(_.contains(id))
+def hasConsumer[A](queues:Queues[A], id:PartId): STM[Nothing, Boolean] =
+  queues.get.map(_.contains(id))
 
-def removeConsumerFor(id: PartId): IO[Nothing, Unit] =
- workQueues.update(_ - id).unit.commit
+def removeConsumerFor[A](queues:Queues[A], id: PartId): UIO[Unit] =
+  queues.update(_ - id).unit.commit
 
-def getWorkQueueFor(id: PartId):STM[Nothing, TQueue[A]] =
- workQueues.get.map(_(id))
+def getWorkQueueFor[A](queues:Queues[A], id: PartId): STM[Nothing, TQueue[A]] =
+  queues.get.map(_(id))
 
-def setWorkQueueFor(id:PartId, queue:TQueue[A]):STM[Nothing, Unit] =
- workQueues.update(_.updated(id, queue)).unit
+def setWorkQueueFor[A](queues:Queues[A], id:PartId, queue:TQueue[A]): STM[Nothing, Unit] =
+  queues.update(_.updated(id, queue)).unit
 
-def createConsumer(id:PartId, action: A => UIO[Unit]): STM[Nothing, ZIO[Console with Clock, Nothing, Unit]] =
- for {
-  queue <- TQueue.make[A](10)
-      _ <- setWorkQueueFor(id, queue)
- } yield startConsumer(id, queue, removeConsumerFor(id), action)
+def createConsumer[A](queues:Queues[A], id:PartId, maxPending:Int, action: A => UIO[Unit]): STM[Nothing, ZIO[PartEnv, Nothing, Unit]] =
+  for {
+    queue <- TQueue.make[A](maxPending)
+    _     <- setWorkQueueFor(queues, id, queue)
+  } yield startConsumer(id, queue, removeConsumerFor(queues, id), action)
 
-def producerSTM(a:A): STM[Nothing, ZIO[Console with Clock, Nothing, Boolean]] =
- for {
-     exists <- hasConsumer(partIdOf(a))
-   consumer <- if(exists) STM.succeed(ZIO.unit) else createConsumer(partIdOf(a), action)
-      queue <- getWorkQueueFor(partIdOf(a))
-  published <- publish(queue,a)
- } yield ZIO.succeed(published) <* consumer
-
-def producer(a:A):UIO[Boolean] =
- producerSTM(a).commit.flatten.provide(env)
-
+def producer[A](queues:Queues[A], partIdOf:A => PartId, action: A => UIO[Unit])(a:A): ZIO[PartEnv, Nothing, Boolean] =
+  maxPending >>= { maxPending:Int =>
+    STM.atomically {
+      for {
+           exists <- hasConsumer(queues, partIdOf(a))
+               id  = partIdOf(a)
+         consumer <- if (exists) STM.succeed(ZIO.unit) else createConsumer(queues, id, maxPending, action)
+            queue <- getWorkQueueFor(queues, partIdOf(a))
+        published <- publish(queue, a)
+      } yield ZIO.succeed(published) <* consumer
+    }.flatten
+  }
 {% endhighlight %} 
 
-Some of these methods are quite straightforward, like *hasConsumer*, *removeConsumerFor* and *setWorkQueueFor*. The remaining three methods
+Some of these methods are quite straightforward, like *hasConsumer*, *removeConsumerFor*, *getWorkerQueueFor*,  and *setWorkQueueFor*. The remaining two methods
 are more interesting. 
 
 For instance, in *createConsumer* we're both creating the work queue for a new consumer, and building the program
 that will consume from said queue. Notice that we're building the program, as opposed to running it. We can't actually
 (well we shouldn't at least) perform any IO inside of a transaction. ZIO makes that very explicit through the type system.
 
-We don't want to create a consumer every time the producer function is called though, so we need a function that can check for existing
-consumers, and call createConsumer only when needed and then publish the message. This is the job of *producerSTM*. Again, we're not
-allowed to actually run any IO inside of a transaction, so all we can do is to build new programs that when run will do what we've
-asked. In this method we're just combining the consumer and the result of the publish into a program that will when run consume
+We don't want to create a consumer every time the *producer* function is called though, so we need a function that can check for existing
+consumers, and call *createConsumer* only when needed and then publish the message. Again, we're not allowed to actually run any
+IO inside of a transaction, so all we can do is to build new programs that when run will do what we've asked. 
+In this function we're just combining the consumer and the result of the publish into a program that will when run consume
 messages in a separate fiber. 
 
 There's a small wart here, in that we end up having to create a dummy consumer in case one has already been defined. This dummy
 consumer is actually just an effect that returns Unit.
 
-The last method *producer*, is what builds the final effect returned to the user. We convert the producerSTM(..) call into a ZIO effect
-by calling commit. Interestingly, this will give us an effect of the type **UIO[ZIO[Console with Clock, Nothing, Boolean]]**. To
-meet our api specification, we just need to call *flatten*, and provide the passed in *env* on the effect value.
 
 #### The final piece of the puzzle
 
 There are only some parts that I haven't showed of the implementation of the *partition* function. Let's see the missing parts now
 
 {% highlight scala %}
-type PartId = String
 
-def partition[A](partIdOf:A => PartId, action:A => UIO[Unit]):ZIO[Clock with Console, Nothing, A => UIO[Boolean]] =
- for {
-  workQueues <- TRef.make(Map.empty[PartId,TQueue[A]]).commit
-  env        <- ZIO.environment[Clock with Console]
-  worker     <- ZIO.effectTotal {
+def partition[A](config: Config, partIdOf: A => PartId, action: A => UIO[Unit]): ZIO[Any, Nothing, A => UIO[Boolean]] =
+  TRef.make(Map.empty[PartId, TQueue[A]]).commit.map(
+    queues => producer(queues, partIdOf, action)(_).provide(buildEnv(config, env))
+  )
 
-  def publish(queue:TQueue[A], a:A):STM[Nothing, Boolean] =
-    queue.size flatMap (size => if(size == queue.capacity) STM.succeed(false) else queue.offer(a) *> STM.succeed(true))
+trait Conf {
+  def userTTL: Duration
+  def idleTTL: Duration
+  def maxPending: Int
+}
 
-  def debug(cause: Exit.Cause[String]): ZIO[Console, Nothing, Unit] =
-    console.putStrLn(cause.failures.mkString("\n\t") + cause.defects.mkString("\n\t"))
+type PartEnv = Clock with Console with Conf
+type Queues[A] = TRef[Map[PartId,TQueue[A]]]
 
-  def takeNextMessageOrTimeout(id: PartId, queue: TQueue[A]): ZIO[Clock, String, A] =
-    queue.take.commit.timeoutFail(s"$id was retired")(Duration(2, SECONDS))
+def buildEnv(conf:Config, env:Clock with Console):PartEnv =
+  new Conf with Clock with Console {
+    override def userTTL: Duration = conf.userTTL
+    override def idleTTL: Duration = conf.idleTTL
+    override def maxPending: Int = conf.maxPending
 
-  def safelyPerformAction(id: PartId, action: A => UIO[Unit]): A => ZIO[Console with Clock, Nothing, Unit] =
-    action(_).timeoutFail(s"$id action timed out")(Duration(3, SECONDS)).sandbox.catchAll(debug)
+    override val clock:Clock.Service[Any] = env.clock
+    override val scheduler:Scheduler.Service[Any] = env.scheduler
+    override val console:Console.Service[Any] = env.console
+  }
 
-  def startConsumer(id:PartId, queue: TQueue[A], cleanup:UIO[Unit], action: A => UIO[Unit]): ZIO[Console with Clock, Nothing, Unit] =
-    (takeNextMessageOrTimeout(id, queue) flatMap safelyPerformAction(id, action)).forever.ensuring(cleanup).fork.unit
+val userTTL:ZIO[Conf, Nothing, Duration] =
+  ZIO.access[Conf](_.userTTL)
 
-  def hasConsumer(id:PartId):STM[Nothing, Boolean] =
-    workQueues.get.map(_.contains(id))
+val idleTTL:ZIO[Conf, Nothing, Duration] =
+  ZIO.access[Conf](_.idleTTL)
 
-  def removeConsumerFor(id: PartId): IO[Nothing, Unit] =
-    workQueues.update(_ - id).unit.commit
-
-  def getWorkQueueFor(id: PartId):STM[Nothing, TQueue[A]] =
-    workQueues.get.map(_(id))
-
-  def setWorkQueueFor(id:PartId, queue:TQueue[A]):STM[Nothing, Unit] =
-    workQueues.update(_.updated(id, queue)).unit
-
-  def createConsumer(id:PartId, action: A => UIO[Unit]): STM[Nothing, ZIO[Console with Clock, Nothing, Unit]] =
-    for {
-      queue <- TQueue.make[A](10)
-          _ <- setWorkQueueFor(id, queue)
-    } yield startConsumer(id, queue, removeConsumerFor(id), action)
-
-  def producerSTM(a:A): STM[Nothing, ZIO[Console with Clock, Nothing, Boolean]] =
-    for {
-        exists <- hasConsumer(partIdOf(a))
-      consumer <- if(exists) STM.succeed(ZIO.unit) else createConsumer(partIdOf(a), action)
-         queue <- getWorkQueueFor(partIdOf(a))
-     published <- publish(queue,a)
-    } yield ZIO.succeed(published) <* consumer
-
-  def producer(a:A):UIO[Boolean] =
-    producerSTM(a).commit.flatten.provide(env)
-
-  producer(_)
-
- }
-} yield worker
+val maxPending:ZIO[Conf, Nothing, Int] =
+  ZIO.access[Conf](_.maxPending)
 
 {% endhighlight %}
 
