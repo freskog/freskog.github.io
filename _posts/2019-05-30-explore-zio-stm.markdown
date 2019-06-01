@@ -678,6 +678,8 @@ One thing which I haven't covered in this post is performance. The maintainers o
 
 That said for IO heavy loads, I would be very comfortable using ZIO in production as it is, assuming that the team felt comfortable with the library.
 
+If you want to play around with the code, I've prepared a [github project][github-repo-link] with all the code I've shown here.
+
 /Fred
 
 [systemfw-state-in-fp]: https://vimeo.com/294736344
