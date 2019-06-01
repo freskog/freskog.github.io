@@ -68,7 +68,7 @@ to try to understand it better. It consists of three parts, the resouce part, er
 equivalent. We can see that this function doesn't have any external dependencies. If it had said **Console with Clock**, then
 we would need to *provide* an environment that contains the implementation for both of these services before running the effect.
 I won't explain in detail how this works, but it's essentially a baked in reader monad. If that means nothing to you, then
-think of it as having easy access to your Spring Context inside of the effect, and to run the function you need to call
+think of it as having easy access to your Spring Context inside of the effect, and to run the effect you need to call
 it with its Spring Context.
 
 **Nothing**, just by looking at this return type it's clear that this effect has no expected failures. That doesn't mean it
