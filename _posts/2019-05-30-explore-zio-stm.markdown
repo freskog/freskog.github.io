@@ -670,7 +670,7 @@ for each partition. Notice that the publish succeeded for n = 0, but we throw an
 
 ## Conclusions
 
-I have it was a great experience trying out STM and ZIO in general. It's extremely well thought out, and my only gripe so far has been that I can't unit test
+I have to say it was a great experience trying out STM and ZIO in general. It's extremely well thought out, and my only gripe so far has been that I can't unit test
 my timeouts in a deterministic fashion. There's an open ticket [here][timeout-bug] which hopefully will get some attention soon. Other than that, I have to
 say I can't find any faults from an end user perspective.
 
