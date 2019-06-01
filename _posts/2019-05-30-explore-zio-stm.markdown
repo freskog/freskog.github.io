@@ -75,10 +75,10 @@ it with its Spring Context.
 won't have defects though. In ZIO there's a big distinction between failures we expect to handle, and defects that we either
 didn't anticipate, or failures that we can't reasonably handle (i.e., database was eaten by gnomes). I generally try to handle
 failures close to where they occur (perhaps attempt a retry, try an alternative strategy etc), and to let defects propagate
-to the a common point in the system, where all defects that happened as part of processing are logged together.
+to a common point in the system, where all defects that happened as part of processing are logged together.
 
 **A => UIO[Boolean]**, this is the function the user must call to insert work into the system, aka the producer function, which
-when called tries to accept a payload of type A for processing. If we've hit maximum of pending work for this partition, the
+when called tries to accept a payload of type A for processing. If we've hit the maximum of pending work for this partition, the
 function will return false (wrapped inside of UIO[_], since the act of accepting work for processing is an effect).
 
 #### Why do we need to have two layers of effects?
@@ -135,7 +135,7 @@ processing incoming requests on behalf of different users, we might return an er
 or halt processing entirely (I would avoid that).
 
 The standard way of decoupling a producer from a consumer is to put a message onto a queue, and have a separate fiber act as a consumer. 
-STM provides a queue that can participate in transactions, it's called **TQueue[A]**. It's API is quite straight forward, it has
+STM provides a queue that can participate in transactions, it's called **TQueue[A]**. It's API is quite straightforward, it has
 methods for publishing (*offer*), consuming (*take*), and for checking how many items are currently in the queue (*size*) and its
 maximum capacity (*capacity*).
 
@@ -208,7 +208,7 @@ def startConsumer[A](id:PartId, queue: TQueue[A], cleanup:UIO[Unit], action: A =
 
 {% endhighlight %}
 
-For people used to working primarily with Futures, it's probably surprising to see the call to timeoutFail after we've called commit. If you think about 
+For people used to working primarily with Futures, it's probably surprising to see the call to *timeoutFail* after we've called *commit*. If you think about 
 this code as a series of descriptions it's easier to understand what's going on. When we call *commit*, we've got a **ZIO[Any,Nothing,A]**, and calling
 *timeoutFail* on that value is going to produce a value of type **ZIO[R,String,A]**. Because we're dealing with descriptions that makes sense. 
 
@@ -243,7 +243,7 @@ any messages for a while we assume it's safe to stop processing messages for the
 effect will not repeat the effect in case of errors. To prevent spamming the output with stack traces, we add the *option* call. It will move errors
 into the result and ensure a clean termination of the fiber after the cleanup action has been invoked (*ensuring* is like a finalizer).
 
-Our little consumer program is nearly done, we just to add an instruction to say that all of the above should happen in a dedicated fiber, by calling *fork*.
+Our little consumer program is nearly done, we just need to add an instruction to say that all of the above should happen in a dedicated fiber, by calling *fork*.
 
 Finally, to make the return type a little prettier, we also call *unit* (as we don't need to interact with the forked fiber, we can ignore it).
 
@@ -259,8 +259,8 @@ When the *producer* function is invoked we need to
 5. return the result of the publish (it will be true if the message was accepted by the queue, otherwise false), and the consumer
 6. take the result and consumer from the committed STM transansaction and run them
 
-Because the consumers can come and go, we need to make sure that map of partition ids to queues (**Map[PartId,TQueue[A]]**), can participate in transactions. 
-This means we need to wrap them in a transactional reference, the **TRef[A]** type.
+Because the consumers can come and go, we need to make sure that the map of partition ids to queues (**Map[PartId,TQueue[A]]**), can participate in transactions. 
+This means we need to wrap it in a transactional reference, the **TRef[A]** type.
 
 To make the following code a little more readable, I've introduced two type aliases
 - **Queues[A]** is an alias for **TRef[Map[PartId,TQueue[A]]]**
