@@ -150,7 +150,7 @@ def publish[A](queue:TQueue[A], a:A):STM[Nothing, Boolean] =
 Our *publish[A]* function checks that we have spare capacity before attempting to publish to the queue. If we didn't have this check, we could end up
 suspending the fiber trying to publish which we don't want in this case. 
 
-If you're not familiar with the {% highlight scala %} fa *> fb {% endhighlight %} operator it's essentially the the same thing as writing 
+If you're not familiar with the {% highlight scala %} fa *> fb {% endhighlight %} operator it's essentially the same thing as writing 
 
 {% highlight scala %}
 
@@ -614,7 +614,7 @@ for partition id 0, didn't prevent subsequent messages from being processed corr
 
 I haven't shown that resources are being freed, but I'll leave that as an excercise for the reader :)
 
-One last thing to show is that the back pressure function works as designed. To simulate back pressure kicking in, we will modify the the program
+One last thing to show is that the back pressure function works as designed. To simulate back pressure kicking in, we will modify the program
 so that *brokenFunction* sleeps for 1 second no matter which message it's processing, and reduce the maxPending config to 1. To make the output 
 easier to reason about, I'll also remove the **IllegalArgumentException**, and print some more information. We need to print the timestamps
 when a message is published, and when it was received for processing and when it was done processing.
@@ -654,7 +654,7 @@ Consumed successfully at 602ms, done at 1608ms - Fiber: 98, n = 5 (call #1)
 {% endhighlight  %}
 
 The output is pretty much exactly what I expected, no partition is able to process more than
-one message, because the first message is still in the queue as the second message being
+one message, because the first message is still in the queue as the second message is
 published. However, as I tried a couple of more runs I got this output
 
 {% highlight console %}
@@ -717,8 +717,10 @@ of the delays are kind of a moot point, as they don't add to the time it takes f
 What we're seing above is that for some of the partitions the consumer managed to commit and thus taking a message off the queue before the
 second message was published, for the others the second publish happened before the commit. 
 
-I suppose the actual semantics of the back pressure mechanism are acceptable. I've created a branch called *backpressure* in the accompanying github
-repo with the changes I made for this part.
+I suppose the actual semantics of having one message being processed and one message pending on the queue is acceptable for a back pressure mechanism,
+even though it wasn't what I actually thought was going to happen.
+
+I've created a branch called *backpressure* in the  [accompanying github repo][github-repo-link] with the changes I made for this part.
 
 ## Conclusions
 
