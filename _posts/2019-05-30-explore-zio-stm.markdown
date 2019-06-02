@@ -151,6 +151,13 @@ def publish[A](queue:TQueue[A], a:A):STM[Nothing, Boolean] =
 Our *publish[A]* function checks that we have spare capacity before attempting to publish to the queue. If we didn't have this check, we could end up
 suspending the fiber trying to publish which we don't want in this case. 
 
+This is where the power of STM becomes apparent. Without STM there'd be a pretty bad race condition here. If another fiber were to publish at the
+same time we could end up with a situation where both fibers see the same value when checking queue.size and each proceeds despite the fact that
+there might only be room for one more message on the queue. Because of STM, we're guaranteed that the value we read from queue.size hasn't changed until
+the point where we commit. 
+
+If another transaction does manage to publish before our transaction all our changes will be rolled back and the entire transaction retried.
+
 If you're not familiar with the {% highlight scala %} fa *> fb {% endhighlight %} operator it's essentially the same thing as writing 
 
 {% highlight scala %}
