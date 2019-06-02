@@ -732,6 +732,8 @@ I've not touched on the performance here, but the maintainers of ZIO maintain a 
 
 I would certainly encourage others to check it out, but be aware that APIs are still changing in ZIO especially up until the 1.0 release.
 
+The code is available in a [github repo][github-repo-link]. 
+
 /Fred
 
 [systemfw-state-in-fp]: https://vimeo.com/294736344
