@@ -3,6 +3,7 @@ layout: post
 author: Fredrik Skogberg
 title: Exploring the STM functionality in ZIO
 tags: ZIO STM
+comments: true
 ---
 
 ## Introduction
@@ -742,3 +743,4 @@ The code is available in a [github repo][github-repo-link].
 [github-repo-link]: https://github.com/freskog/stm-partitioning
 [timeout-bug]: https://github.com/zio/zio/issues/925
 [zio-github]: https://github.com/zio/zio
+
