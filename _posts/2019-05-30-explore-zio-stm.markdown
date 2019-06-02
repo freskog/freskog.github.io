@@ -722,7 +722,7 @@ transaction, so we need to commit the transaction before the consumer can start 
 consumer starts it's processing a spot will open up in the queue, rather than after the processing of the current message has finished. So all
 of the delays are kind of a moot point, as they don't add to the time it takes for a transaction to take an item off the queue.
 
-What we're seing above is that for some of the partitions the consumer managed to commit and thus taking a message off the queue before the
+What we're seeing above is that for some of the partitions the consumer managed to commit and thus taking a message off the queue before the
 second message was published, for the others the second publish happened before the commit. 
 
 I suppose the actual semantics of having one message being processed and one message pending on the queue is acceptable for a back pressure mechanism,
