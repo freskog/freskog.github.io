@@ -615,8 +615,8 @@ for partition id 0, didn't prevent subsequent messages from being processed corr
 I haven't shown that resources are being freed, but I'll leave that as an excercise for the reader :)
 
 One last thing to show is that the back pressure function works as designed. To simulate back pressure kicking in, we will modify the the program
-so that it *brokenFunction* sleeps for 1 second no matter which message it's processing, and reduce the maxPending config to 1. To make the out
-put easier to reason about, I'll also remove the **IllegalArgumentException**, and print some more information. We need to print the time stamps
+so that *brokenFunction* sleeps for 1 second no matter which message it's processing, and reduce the maxPending config to 1. To make the output 
+easier to reason about, I'll also remove the **IllegalArgumentException**, and print some more information. We need to print the timestamps
 when a message is published, and when it was received for processing and when it was done processing.
 
 Let's do a couple of runs, and see what happens!
