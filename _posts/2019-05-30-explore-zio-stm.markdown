@@ -1,6 +1,6 @@
 ---
 layout: post
-author: freskog
+author: Fredrik Skogberg
 title: Exploring the STM functionality in ZIO
 tags: ZIO STM
 ---

@@ -40,7 +40,7 @@ author:
     - name: instagram
       url:
     - name: linkedin
-      url:
+      url: https://www.linkedin.com/in/fredrik-s-a1a10917/
     - name: stackoverflow
       url:
     - name: twitter
@@ -50,7 +50,7 @@ author:
 home:
   section1: <h1>A blog about programming</h1>
   section2: <h2>Functional Programming, DDD, Scala</h2>
-  section3: <div class="social-links"><a class="ico-twitter btn" href="https://twitter.com/freskog" title="Follow on Twitter"></a><a class="ico-github btn" href="https://github.com/freskog" title="View on GitHub"></a></div>
+  section3: <div class="social-links"><a class="ico-linkedin btn" href="https://www.linkedin.com/in/fredrik-s-a1a10917/" title="Connect on LinkedIn"><a class="ico-twitter btn" href="https://twitter.com/freskog" title="Follow on Twitter"></a><a class="ico-github btn" href="https://github.com/freskog" title="View on GitHub"></a></div>
 
 blog:
   cc_license: http://creativecommons.org/licenses/by-sa/4.0/ # A link to CC License of your choice.
