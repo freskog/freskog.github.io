@@ -84,7 +84,7 @@ function will return false (wrapped inside of UIO[_], since the act of accepting
 #### Why do we need to have two layers of effects?
 
 The effect layers correspond to two different actions. The outer most layer is saying that it will generate a producer function
-in a manner that requires an effect. The inner layer is say that the generated producer function is itself effectful. Being
+in a manner that requires an effect. The inner layer indicates that the generated producer function is itself effectful. Being
 effectful here means that they describe side-effects like using mutable state and spawn new fibers.
 
 If you want to learn more about managing mutable state using an effect system, I recommend this [talk][systemfw-state-in-fp] by Fabio Labella.
@@ -213,8 +213,10 @@ this code as a series of descriptions it's easier to understand what's going on.
 *timeoutFail* on that value is going to produce a value of type **ZIO[R,String,A]**. Because we're dealing with descriptions that makes sense. 
 
 There's a little bit of subtlety when *flatMap* is involved, because of it's signature. We need to provide a function with the signature **A => ZIO[R,E,B]**,
-and this means that any timeout set on the **ZIO[R,E,B]** inside of the *flatMap* will only have an effect on the instructions included inside that value. 
-In practice this means that anything before the *flatMap* and after is unaffected by a call to timeout inside of the *flatMap*. 
+and this means that any timeout set on the **ZIO[R,E,B]** inside of the *flatMap* will only apply to the instructions inside of the newly created
+**ZIO[R,E,A]**. Obviously, we still need to deal with the fact that a timeout may have happened after a call to *timeoutFail*, and that applies
+both for instructions added inside of the *flatMap*, and even instructions added outside after *flatMap* call. 
+
 
 To make this a little clearer, let's go through the takeNextMessageOrTimeout method in more detail
 
