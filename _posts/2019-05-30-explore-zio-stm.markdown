@@ -478,7 +478,7 @@ object PartitioningDemo extends App {
 The happy path here is to print out one line per message containing the offset in ms since the program was started together with the fiber id,
 partition id and how many times the function has been called for that partition.
 
-To make things a little more interesting, the *brokenFunction* will throw an **IllegalArgumentException* (gasp!) for the first invocation of
+To make things a little more interesting, the *brokenFunction* will throw an **IllegalArgumentException** (gasp!) for the first invocation of
 partition id 0. Because of that we would expect the first thing we see to be a stack trace, rather than the happy path message.
 
 Another little thing to watch out for is that *brokenFunction* will perform a delay based on (100 * partitionId)ms, so for partition ids 
