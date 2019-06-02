@@ -448,7 +448,7 @@ object PartitioningDemo extends App {
       } yield ()
     )
 
-  val workItems: List[Int] = List.range(0,11) ::: List.range(0,11) ::: List.range(0, 31)
+  val workItems: List[Int] = List.range(0,11) ::: List.range(0,11) ::: List(30)
 
   val program: ZIO[Environment with Partition, Nothing, Int] =
     for {
@@ -475,53 +475,60 @@ object PartitioningDemo extends App {
 
 {% endhighlight %} 
 
-I think the interesting bit to notice here is that we will blow up with an exception the first time *brokenFunction* is called for partition id 0. 
-There will also be a timeout triggered for the last message (30 times 100 will put it at the limit of 3 seconds for userTTL). Let's have a look at the 
-output from running this.
+The happy path here is to print out one line per message containing the offset in ms since the program was started together with the fiber id,
+partition id and how many times the function has been called for that partition.
 
-{% highlight bash %}
+To make things a little more interesting, the *brokenFunction* will throw an **IllegalArgumentException* (gasp!) for the first invocation of
+partition id 0. Because of that we would expect the first thing we see to be a stack trace, rather than the happy path message.
 
-Published 53 out of 53
+Another little thing to watch out for is that *brokenFunction* will perform a delay based on (100 * partitionId)ms, so for partition ids 
+larger than 30 we'll end up exceeding the configured userTTL duration of 3 seconds.
+
+Let's have a look at the output from running this.
+
+{% highlight console %}
+
+Published 34 out of 34
 Fiber failed.
 An unchecked error was produced.
-java.lang.IllegalArgumentException: Offset: 623ms Fiber: 265, n = 0 (call #1)
+java.lang.IllegalArgumentException: Offset: 605ms Fiber: 76, n = 0 (call #1)
     at freskog.concurrency.app.PartitioningDemo$.$anonfun$brokenUserFunction$7(PartitioningDemo.scala:27)
-    at ...
+    at ..
 
-Fiber:265 was supposed to continue to:
-  at ...
+Fiber:76 was supposed to continue to:
+  a future continuation at ..
 
-Fiber:265 execution trace:
+Fiber:76 execution trace:
   at freskog.concurrency.app.PartitioningDemo$.brokenUserFunction(PartitioningDemo.scala:25)
   at freskog.concurrency.app.PartitioningDemo$.brokenUserFunction(PartitioningDemo.scala:25)
   at freskog.concurrency.app.PartitioningDemo$.brokenUserFunction(PartitioningDemo.scala:24)
   at freskog.concurrency.app.PartitioningDemo$.brokenUserFunction(PartitioningDemo.scala:24)
   at freskog.concurrency.app.PartitioningDemo$.brokenUserFunction(PartitioningDemo.scala:24)
-  at ...
+  at ..
 
-Fiber:265 was spawned by:
+Fiber:76 was spawned by:
 
 Fiber:2 was supposed to continue to:
   a future continuation at freskog.concurrency.partition.Partition$.safelyPerformAction(Partition.scala:71)
-  at ...
+  a future continuation at ..
 
 Fiber:2 execution trace:
   at freskog.concurrency.partition.Partition$.safelyPerformAction(Partition.scala:71)
   at freskog.concurrency.partition.Partition$.startConsumer(Partition.scala:74)
-  at ...
+  at ..
 
 Fiber:2 was spawned by:
 
 Fiber:1 was supposed to continue to:
   a future continuation at freskog.concurrency.app.PartitioningDemo$.program(PartitioningDemo.scala:40)
-  at ...
+  a future continuation at ..
 
 Fiber:1 execution trace:
   at freskog.concurrency.partition.Partition$.producer(Partition.scala:103)
   at freskog.concurrency.partition.Partition$.producer(Partition.scala:95)
   at freskog.concurrency.app.PartitioningDemo$.program(PartitioningDemo.scala:39)
   at freskog.concurrency.partition.Partition$Live$$anon$1.partition(Partition.scala:28)
-  at ...
+  at ..
 
 Fiber:1 was spawned by:
 
@@ -531,79 +538,60 @@ Fiber:0 was supposed to continue to:
 Fiber:0 ZIO Execution trace: <empty trace>
 
 Fiber:0 was spawned by: <empty trace>
-Offset: 667ms Fiber: 285, n = 0 (call #2)
-Offset: 671ms Fiber: 293, n = 0 (call #3)
-Offset: 723ms Fiber: 210, n = 1 (call #1)
-Offset: 825ms Fiber: 209, n = 2 (call #1)
-Offset: 825ms Fiber: 305, n = 1 (call #2)
-Offset: 926ms Fiber: 181, n = 3 (call #1)
-Offset: 927ms Fiber: 318, n = 1 (call #3)
-Offset: 1026ms Fiber: 193, n = 4 (call #1)
-Offset: 1027ms Fiber: 317, n = 2 (call #2)
-Offset: 1121ms Fiber: 157, n = 5 (call #1)
-Offset: 1226ms Fiber: 221, n = 6 (call #1)
-Offset: 1229ms Fiber: 331, n = 3 (call #2)
-Offset: 1229ms Fiber: 349, n = 2 (call #3)
-Offset: 1325ms Fiber: 159, n = 7 (call #1)
-Offset: 1426ms Fiber: 261, n = 8 (call #1)
-Offset: 1428ms Fiber: 341, n = 4 (call #2)
-Offset: 1525ms Fiber: 238, n = 9 (call #1)
-Offset: 1531ms Fiber: 377, n = 3 (call #3)
-Offset: 1623ms Fiber: 251, n = 10 (call #1)
-Offset: 1624ms Fiber: 357, n = 5 (call #2)
-Offset: 1722ms Fiber: 188, n = 11 (call #1)
-Offset: 1824ms Fiber: 245, n = 12 (call #1)
-Offset: 1829ms Fiber: 365, n = 6 (call #2)
-Offset: 1829ms Fiber: 401, n = 4 (call #3)
-Offset: 1925ms Fiber: 215, n = 13 (call #1)
-Offset: 2022ms Fiber: 226, n = 14 (call #1)
-Offset: 2027ms Fiber: 385, n = 7 (call #2)
-Offset: 2124ms Fiber: 223, n = 15 (call #1)
-Offset: 2126ms Fiber: 429, n = 5 (call #3)
-Offset: 2224ms Fiber: 185, n = 16 (call #1)
-Offset: 2228ms Fiber: 393, n = 8 (call #2)
-Offset: 2325ms Fiber: 248, n = 17 (call #1)
-Offset: 2422ms Fiber: 171, n = 18 (call #1)
-Offset: 2427ms Fiber: 409, n = 9 (call #2)
-Offset: 2431ms Fiber: 449, n = 6 (call #3)
-Offset: 2523ms Fiber: 247, n = 19 (call #1)
-Offset: 2626ms Fiber: 233, n = 20 (call #1)
-Offset: 2626ms Fiber: 425, n = 10 (call #2)
-Offset: 2726ms Fiber: 232, n = 21 (call #1)
-Offset: 2730ms Fiber: 465, n = 7 (call #3)
-Offset: 2831ms Fiber: 269, n = 22 (call #1)
-Offset: 2923ms Fiber: 172, n = 23 (call #1)
-Offset: 3023ms Fiber: 201, n = 24 (call #1)
-Offset: 3029ms Fiber: 485, n = 8 (call #3)
-Offset: 3127ms Fiber: 277, n = 25 (call #1)
-Offset: 3225ms Fiber: 194, n = 26 (call #1)
-Offset: 3323ms Fiber: 169, n = 27 (call #1)
-Offset: 3329ms Fiber: 501, n = 9 (call #3)
-Offset: 3425ms Fiber: 205, n = 28 (call #1)
-Offset: 3528ms Fiber: 273, n = 29 (call #1)
+Offset: 685ms Fiber: 114, n = 0 (call #2)
+Offset: 689ms Fiber: 122, n = 0 (call #3)
+Offset: 713ms Fiber: 95, n = 1 (call #1)
+Offset: 814ms Fiber: 100, n = 2 (call #1)
+Offset: 816ms Fiber: 134, n = 1 (call #2)
+Offset: 904ms Fiber: 64, n = 3 (call #1)
+Offset: 918ms Fiber: 150, n = 1 (call #3)
+Offset: 1018ms Fiber: 142, n = 2 (call #2)
+Offset: 1018ms Fiber: 106, n = 4 (call #1)
+Offset: 1109ms Fiber: 65, n = 5 (call #1)
+Offset: 1207ms Fiber: 62, n = 6 (call #1)
+Offset: 1208ms Fiber: 158, n = 3 (call #2)
+Offset: 1224ms Fiber: 176, n = 2 (call #3)
+Offset: 1310ms Fiber: 94, n = 7 (call #1)
+Offset: 1409ms Fiber: 90, n = 8 (call #1)
+Offset: 1424ms Fiber: 174, n = 4 (call #2)
+Offset: 1505ms Fiber: 80, n = 9 (call #1)
+Offset: 1512ms Fiber: 199, n = 3 (call #3)
+Offset: 1607ms Fiber: 67, n = 10 (call #1)
+Offset: 1613ms Fiber: 186, n = 5 (call #2)
+Offset: 1815ms Fiber: 198, n = 6 (call #2)
+Offset: 1828ms Fiber: 230, n = 4 (call #3)
+Offset: 2015ms Fiber: 214, n = 7 (call #2)
+Offset: 2119ms Fiber: 258, n = 5 (call #3)
+Offset: 2214ms Fiber: 222, n = 8 (call #2)
+Offset: 2408ms Fiber: 238, n = 9 (call #2)
+Offset: 2420ms Fiber: 266, n = 6 (call #3)
+Offset: 2613ms Fiber: 250, n = 10 (call #2)
+Offset: 2720ms Fiber: 278, n = 7 (call #3)
+Offset: 3017ms Fiber: 290, n = 8 (call #3)
+Offset: 3314ms Fiber: 298, n = 9 (call #3)
 Fiber failed.
 A checked error was not handled.
 30 action timed out
 
-Fiber:102 was supposed to continue to:
+Fiber:35 was supposed to continue to:
   a future continuation at freskog.concurrency.partition.Partition$.safelyPerformAction(Partition.scala:71)
-  at ...
+  a future continuation at ..
 
-Fiber:102 execution trace:
+Fiber:35 execution trace:
   at freskog.concurrency.partition.Partition$.safelyPerformAction(Partition.scala:71)
   at freskog.concurrency.partition.Partition$.startConsumer(Partition.scala:74)
   at freskog.concurrency.partition.Partition$.takeNextMessageOrTimeout(Partition.scala:68)
-  at ...
+  at ..
 
-Fiber:102 was spawned by:
+Fiber:35 was spawned by:
 
 Fiber:1 was supposed to continue to:
-  a future continuation at ...
+  a future continuation at ..
 
 Fiber:1 execution trace:
   at freskog.concurrency.partition.Partition$.producer(Partition.scala:103)
   at freskog.concurrency.partition.Partition$.producer(Partition.scala:95)
-  at ...
+  at ..
 
 Fiber:1 was spawned by:
 
@@ -613,12 +601,12 @@ Fiber:0 was supposed to continue to:
 Fiber:0 ZIO Execution trace: <empty trace>
 
 Fiber:0 was spawned by: <empty trace>
-Offset: 3628ms Fiber: 521, n = 10 (call #3)
+Offset: 3616ms Fiber: 310, n = 10 (call #3)
 
-Process finished with exit code 0
+
 {% endhighlight %}
 
-For brevity, I've snipped some of the traces (the parts from the inside of the ZIO library itself) and replaced them with "at ...".
+For brevity, I've snipped some of the traces (the parts from the inside of the ZIO library itself).
 
 It's good to see that both the user defect and the timeout are logged as expected. We also see that all the messages are processed in the
 expected order, with parallelism between the different partitions. Again, we can see that having an error for the first message
@@ -626,61 +614,123 @@ for partition id 0, didn't prevent subsequent messages from being processed corr
 
 I haven't shown that resources are being freed, but I'll leave that as an excercise for the reader :)
 
-One last interesting thing to note is that we saw all messages being published. If we wanted to simulate back pressure kicking in, we could run the program again
-with a max pending of just 1. Let's see what happens!
+One last thing to show is that the back pressure function works as designed. To simulate back pressure kicking in, we will modify the the program
+so that it *brokenFunction* sleeps for 1 second no matter which message it's processing, and reduce the maxPending config to 1. To make the out
+put easier to reason about, I'll also remove the **IllegalArgumentException**, and print some more information. We need to print the time stamps
+when a message is published, and when it was received for processing and when it was done processing.
 
-{% highlight bash %}
+Let's do a couple of runs, and see what happens!
 
-Published 31 out of 53
-...
-Offset: 806ms Fiber: 273, n = 1 (call #1)
-Offset: 902ms Fiber: 165, n = 2 (call #1)
-Offset: 1004ms Fiber: 269, n = 3 (call #1)
-Offset: 1104ms Fiber: 238, n = 4 (call #1)
-Offset: 1201ms Fiber: 221, n = 5 (call #1)
-Offset: 1303ms Fiber: 159, n = 6 (call #1)
-Offset: 1403ms Fiber: 171, n = 7 (call #1)
-Offset: 1502ms Fiber: 259, n = 8 (call #1)
-Offset: 1603ms Fiber: 190, n = 9 (call #1)
-Offset: 1715ms Fiber: 277, n = 10 (call #1)
-Offset: 1804ms Fiber: 194, n = 11 (call #1)
-Offset: 1903ms Fiber: 243, n = 12 (call #1)
-Offset: 2002ms Fiber: 157, n = 13 (call #1)
-Offset: 2103ms Fiber: 226, n = 14 (call #1)
-Offset: 2203ms Fiber: 237, n = 15 (call #1)
-Offset: 2303ms Fiber: 186, n = 16 (call #1)
-Offset: 2402ms Fiber: 203, n = 17 (call #1)
-Offset: 2501ms Fiber: 225, n = 18 (call #1)
-Offset: 2602ms Fiber: 254, n = 19 (call #1)
-Offset: 2705ms Fiber: 167, n = 20 (call #1)
-Offset: 2803ms Fiber: 178, n = 21 (call #1)
-Offset: 2903ms Fiber: 232, n = 22 (call #1)
-Offset: 3003ms Fiber: 212, n = 23 (call #1)
-Offset: 3102ms Fiber: 158, n = 24 (call #1)
-Offset: 3204ms Fiber: 249, n = 25 (call #1)
-Offset: 3300ms Fiber: 253, n = 26 (call #1)
-Offset: 3398ms Fiber: 209, n = 27 (call #1)
-Offset: 3502ms Fiber: 177, n = 28 (call #1)
-Offset: 3604ms Fiber: 211, n = 29 (call #1)
-Offset: 3699ms Fiber: 265, n = 30 (call #1)
-...
+{% highlight console %}
+
+First run:
+
+Published successfully at 201ms, - Fiber: 1, n = 0 (call #1)
+Published successfully at 221ms, - Fiber: 1, n = 1 (call #1)
+Published successfully at 223ms, - Fiber: 1, n = 2 (call #1)
+Published successfully at 225ms, - Fiber: 1, n = 3 (call #1)
+Published successfully at 237ms, - Fiber: 1, n = 4 (call #1)
+Published successfully at 254ms, - Fiber: 1, n = 5 (call #1)
+Published successfully at 286ms, - Fiber: 1, n = 6 (call #1)
+Published successfully at 305ms, - Fiber: 1, n = 7 (call #1)
+Published successfully at 319ms, - Fiber: 1, n = 8 (call #1)
+Published successfully at 321ms, - Fiber: 1, n = 9 (call #1)
+Published successfully at 327ms, - Fiber: 1, n = 10 (call #1)
+Published successfully at 339ms, - Fiber: 1, n = 30 (call #1)
+Published 12 out of 34
+Consumed successfully at 595ms, done at 1609ms - Fiber: 63, n = 2 (call #1)
+Consumed successfully at 602ms, done at 1607ms - Fiber: 94, n = 1 (call #1)
+Consumed successfully at 606ms, done at 1607ms - Fiber: 102, n = 8 (call #1)
+Consumed successfully at 596ms, done at 1607ms - Fiber: 82, n = 9 (call #1)
+Consumed successfully at 596ms, done at 1607ms - Fiber: 67, n = 3 (call #1)
+Consumed successfully at 595ms, done at 1607ms - Fiber: 62, n = 6 (call #1)
+Consumed successfully at 595ms, done at 1608ms - Fiber: 73, n = 7 (call #1)
+Consumed successfully at 596ms, done at 1608ms - Fiber: 71, n = 30 (call #1)
+Consumed successfully at 605ms, done at 1609ms - Fiber: 106, n = 4 (call #1)
+Consumed successfully at 596ms, done at 1608ms - Fiber: 85, n = 10 (call #1)
+Consumed successfully at 597ms, done at 1607ms - Fiber: 90, n = 0 (call #1)
+Consumed successfully at 602ms, done at 1608ms - Fiber: 98, n = 5 (call #1)
+
+{% endhighlight  %}
+
+The output is pretty much exactly what I expected, no partition is able to process more than
+one message, because the first message is still in the queue as the second message being
+published. However, as I tried a couple of more runs I got this output
+
+{% highlight console %}
+
+A couple of runs later:
+
+Published successfully at 262ms, - Fiber: 1, n = 0 (call #1)
+Published successfully at 287ms, - Fiber: 1, n = 1 (call #1)
+Published successfully at 291ms, - Fiber: 1, n = 2 (call #1)
+Published successfully at 294ms, - Fiber: 1, n = 3 (call #1)
+Published successfully at 300ms, - Fiber: 1, n = 4 (call #1)
+Published successfully at 310ms, - Fiber: 1, n = 5 (call #1)
+Published successfully at 317ms, - Fiber: 1, n = 6 (call #1)
+Published successfully at 358ms, - Fiber: 1, n = 7 (call #1)
+Published successfully at 387ms, - Fiber: 1, n = 8 (call #1)
+Published successfully at 389ms, - Fiber: 1, n = 9 (call #1)
+Published successfully at 390ms, - Fiber: 1, n = 10 (call #1)
+Published successfully at 431ms, - Fiber: 1, n = 1 (call #2)
+Published successfully at 431ms, - Fiber: 1, n = 2 (call #2)
+Published successfully at 440ms, - Fiber: 1, n = 3 (call #2)
+Published successfully at 441ms, - Fiber: 1, n = 4 (call #2)
+Published successfully at 446ms, - Fiber: 1, n = 5 (call #2)
+Published successfully at 446ms, - Fiber: 1, n = 6 (call #2)
+Published successfully at 446ms, - Fiber: 1, n = 7 (call #2)
+Published successfully at 447ms, - Fiber: 1, n = 8 (call #2)
+Published successfully at 447ms, - Fiber: 1, n = 9 (call #2)
+Published successfully at 511ms, - Fiber: 1, n = 10 (call #2)
+Published successfully at 512ms, - Fiber: 1, n = 30 (call #1)
+Published 22 out of 34
+Consumed successfully at 707ms, done at 1717ms - Fiber: 78, n = 9 (call #2)
+Consumed successfully at 713ms, done at 1718ms - Fiber: 90, n = 0 (call #1)
+Consumed successfully at 709ms, done at 1717ms - Fiber: 86, n = 10 (call #2)
+Consumed successfully at 716ms, done at 1718ms - Fiber: 98, n = 8 (call #2)
+Consumed successfully at 707ms, done at 1717ms - Fiber: 69, n = 1 (call #2)
+Consumed successfully at 708ms, done at 1717ms - Fiber: 82, n = 3 (call #2)
+Consumed successfully at 707ms, done at 1717ms - Fiber: 67, n = 7 (call #2)
+Consumed successfully at 714ms, done at 1718ms - Fiber: 92, n = 4 (call #2)
+Consumed successfully at 716ms, done at 1718ms - Fiber: 99, n = 5 (call #2)
+Consumed successfully at 721ms, done at 1728ms - Fiber: 106, n = 30 (call #1)
+Consumed successfully at 707ms, done at 1718ms - Fiber: 62, n = 6 (call #2)
+Consumed successfully at 707ms, done at 1717ms - Fiber: 63, n = 2 (call #2)
+Consumed successfully at 1746ms, done at 2747ms - Fiber: 128, n = 5 (call #2)
+Consumed successfully at 1745ms, done at 2747ms - Fiber: 120, n = 1 (call #2)
+Consumed successfully at 1747ms, done at 2748ms - Fiber: 123, n = 7 (call #2)
+Consumed successfully at 1748ms, done at 2748ms - Fiber: 146, n = 3 (call #2)
+Consumed successfully at 1748ms, done at 2748ms - Fiber: 147, n = 6 (call #2)
+Consumed successfully at 1749ms, done at 2750ms - Fiber: 160, n = 4 (call #2)
+Consumed successfully at 1750ms, done at 2750ms - Fiber: 174, n = 2 (call #2)
+Consumed successfully at 1751ms, done at 2751ms - Fiber: 179, n = 8 (call #2)
+Consumed successfully at 1751ms, done at 2751ms - Fiber: 178, n = 9 (call #2)
+Consumed successfully at 1752ms, done at 2752ms - Fiber: 190, n = 10 (call #2)
 {% endhighlight %}
 
-I've snipped out the monadic traces entirely this time, and 
-31 out of 53 work items were successfully published, in this silly app we simply ignore the failed ones. In this case it looks like we managed to publish one message
-for each partition. Notice that the publish succeeded for n = 0, but we throw an exception so it doesn't show up with the other messages.
+This wasn't what I had expected. After some pondering though, I realized that there's minor bug in the back pressure mechanism. As we recall the 
+consumer starts of by taking a message from the queue inside a transaction. The problem is that we can't actually perform any IO inside the
+transaction, so we need to commit the transaction before the consumer can start it's processing. In practice this means that as soon as the
+consumer starts it's processing a spot will open up in the queue, rather than after the processing of the current message has finished. So all
+of the delays are kind of a moot point, as they don't add to the time it takes for a transaction to take an item off the queue.
+
+What we're seing above is that for some of the partitions the consumer managed to commit and thus taking a message off the queue before the
+second message was published, for the others the second publish happened before the commit. 
+
+I suppose the actual semantics of the back pressure mechanism are acceptable. I've created a branch called *backpressure* in the accompanying github
+repo with the changes I made for this part.
 
 ## Conclusions
 
-I have to say it was a great experience trying out STM and ZIO in general. It's extremely well thought out, and my only gripe so far has been that I can't unit test
-my timeouts in a deterministic fashion. There's an open ticket [here][timeout-bug] which hopefully will get some attention soon. Other than that, I have to
-say I can't find any faults from an end user perspective.
+STM is a powerful tool, and for teams that feel comfortable using IO, and working with descriptions of side-effects it's definitely 
+ready for some PoCs! 
 
-One thing which I haven't covered in this post is performance. The maintainers of ZIO itself keep pretty good benchmarks, and it's worth trying those yourself.
+The APIs are, as typical for ZIO, quite well thought out. One thing I don't understand is why there isn't a resource part available for STM[E,A], 
+effectively turning it into STM[R,E,A], that would have tidied up a bit more of the code.
 
-That said for IO heavy loads, I would be very comfortable using ZIO in production as it is, assuming that the team felt comfortable with the library.
+I've not touched on the performance here, but the maintainers of ZIO maintain a set of benchmarks which might be of interest if performance is a concern.
 
-If you want to play around with the code, I've prepared a [github project][github-repo-link] with all the code I've shown here.
+I would certainly encourage others to check it out, but be aware that APIs are still changing in ZIO especially up until the 1.0 release.
 
 /Fred
 
