@@ -111,7 +111,7 @@ STM solves this problem by tracking all reads and writes, so if at the end of a 
 were changed by another transaction committing, the current transaction is retried.
 
 In this example, the two transactions would both see the same values, and perform the same writes up until the point the first one commits.
-When the other transaction sees that values it read/wrote were modified in another transaction, an automatic retry is triggered.
+When the other transaction commits and sees that values it read/wrote were modified in another transaction, an automatic retry is triggered.
 Since the retry will see the updated value of bank account 1, there is no risk of us ending up with a negative balance.
 
 Because losing transactions are retried, we can't perform any IO as part of a transaction. Imagine if we had a non-idempotent side-effect
