@@ -456,7 +456,7 @@ object PartitioningDemo extends App {
       } yield ()
     )
 
-  val workItems: List[Int] = List.range(0,11) ::: List.range(0,11) ::: List(30)
+  val workItems: List[Int] = List.range(0,11) ::: List.range(0,11) ::: List.range(0, 11) ::: List(30)
 
   val program: ZIO[Environment with Partition, Nothing, Int] =
     for {
