@@ -186,9 +186,9 @@ describes a program which will fail with an **E** or succeed with an **A** given
 which can either fail with an **E** or succeed with an **A**. The distinction is very important, a value of **ZIO[R,E,A]** can be rerun as many times as you require
 as it's the description of a program. You can't do the same with a Fiber[E,A], because it represents something that is already running.
 
-**Fiber[E,A]** is in many ways the equivalent of a **Future[A]**, except it explicitly tracks how it can fail. Another really important distinction is that a 
-**Fiber[E,A]** when interpreted by the ZIO runtime environment runs as a green thread, whereas a Future will run directly on a OS thread. The ability to
-have multiple green threads running concurrently on a single OS thread lets us save a lot of resources (especially if all of our IO uses non-blocking
+**Fiber[E,A]** is in many ways the equivalent of a **Future[A]**, except it explicitly tracks how it can fail. 
+**Fiber[E,A]** when interpreted by the ZIO runtime environment runs as a green thread. The ability to have multiple green
+threads running concurrently on a single OS thread lets us save a lot of resources (especially if all of our IO uses non-blocking
 operations).
 
 A **Fiber[E,A]** is created by calling *fork* on a value of type **ZIO[R,E,A]**, this tells the runtime environment to run the program described
