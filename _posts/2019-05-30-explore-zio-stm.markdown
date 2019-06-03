@@ -437,7 +437,7 @@ that will run our build. Maybe that's a small wart, but a little bit of a wart n
 
 ### The Demo App
 
-I decided to write a little sample program what will show case some the features we've implemented. It's just a silly program that
+I decided to write a little sample program that will show case some the features we've implemented. It's just a silly program that
 will take a list of numbers, and for each number we have a short delay and print a message to the console.
 
 {% highlight scala %}
@@ -623,7 +623,7 @@ for partition id 0, didn't prevent subsequent messages from being processed corr
 I haven't shown that resources are being freed, but I'll leave that as an excercise for the reader :)
 
 One last thing to show is that the back pressure function works as designed. To simulate back pressure kicking in, we will modify the program
-so that *brokenFunction* sleeps for 1 second no matter which message it's processing, and reduce the maxPending config to 1. To make the output 
+so that *brokenFunction* sleeps for 1 second no matter which message its processing, and reduce the maxPending config to 1. To make the output 
 easier to reason about, I'll also remove the **IllegalArgumentException**, and print some more information. We need to print the timestamps
 when a message is published, and when it was received for processing and when it was done processing.
 
