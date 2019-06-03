@@ -240,15 +240,15 @@ To make this a little clearer, let's go through the *takeNextMessageOrTimeout* m
 The final signature tells us quite a bit, this function needs a Clock and a Conf provided to it before it can be run, and when it is run it will either
 fail with a String or succeed with an A. 
 
-Another surprising thing might be the return type of safelyPerformAction, where the return type indicates that it can not fail, eventhough there's a call
-to *timeoutFail*. This is because of the call to sandbox, which will lift both expected failures and defects into a special data structure called **Exit.Cause[E]**.
+Another surprising thing might be the return type of *safelyPerformAction*, where the return type indicates that it can not fail, eventhough there's a call
+to *timeoutFail*. This is because of the call to *sandbox*, which will lift both expected failures and defects into a special data structure called **Exit.Cause[E]**.
 We do this for two reasons, one is to catch any timeouts from the user provided action, but also to catch any potential defects that might lurk in the user
-defined action. If we didn't use sandbox, we'd risk that any error/defect in the provided action would terminate the fiber, which is not what we want. 
+defined action. If we didn't use *sandbox*, we'd risk that any error/defect in the provided action would terminate the fiber, which is not what we want. 
 
 The question is what to do with any potential failures? In this particular scenario I decided that the best thing to do was to simply log them to the console.
 The latest ZIO (1.0-RC5) includes support for monadic tracing, which is very similar to a stack trace, awesome feature which I'll show some samples of later.
 
-We don't use sandbox to swallow the timeout that can happen while we're taking from the queue. This is intentional, if a consumer hasn't received
+We don't use *sandbox* to swallow the timeout that can happen while we're taking from the queue. This is intentional, if a consumer hasn't received
 any messages for a while we assume it's safe to stop processing messages for the relevant consumer. The timeout is how we achieve that, as the *forever*
 effect will not repeat the effect in case of errors. To prevent spamming the output with stack traces, we add the *option* call. It will move errors
 into the result and ensure a clean termination of the fiber after the cleanup action has been invoked (*ensuring* is like a finalizer).
