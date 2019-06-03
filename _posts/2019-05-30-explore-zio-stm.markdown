@@ -23,7 +23,7 @@ have a queue of incoming payloads, each payload needs to be processed using some
 done sequentially for all payloads that belong to the same partition, but two payloads belonging to different partitions can be
 processed concurrently.
 
-I'm going to assume some pre-requisite knowledge in order to keep the length of this text manageable. Specifically, I'll assume
+I'm going to assume some prerequisite knowledge in order to keep the length of this text manageable. Specifically, I'll assume
 that you are familiar with the standard Scala Future and also Cats IO or Scalaz Task.
 
 ## Requirements
