@@ -194,7 +194,7 @@ operations).
 A **Fiber[E,A]** is created by calling *fork* on a value of type **ZIO[R,E,A]**, this tells the runtime environment to run the program described
 by the **ZIO[R,E,A]** value on a new fiber.
 
-Now that we know how to make our consumer run on its own fiber, let's go through the actions our consumer need to perform
+Now that we know how to make our consumer run on its own fiber, let's go through the actions our consumer needs to perform
 1. Take a message from the queue or timeout if there are no more messages, 
 2. Perform user action, if timeout / defect swallow and log it.
 3. Repeat forever until we are interrupted, or there's a timeout in step 1.
@@ -222,11 +222,11 @@ this code as a series of descriptions it's easier to understand what's going on.
 
 There's a little bit of subtlety when *flatMap* is involved, because of it's signature. We need to provide a function with the signature **A => ZIO[R,E,B]**,
 and this means that any timeout set on the **ZIO[R,E,B]** inside of the *flatMap* will only apply to the instructions inside of the newly created
-**ZIO[R,E,A]**. Obviously, we still need to deal with the fact that a timeout may have happened after a call to *timeoutFail*, and that applies
-both for instructions added inside of the *flatMap*, and even instructions added outside after *flatMap* call. 
+**ZIO[R,E,B]**. Obviously, we still need to deal with the fact that a timeout may have happened after a call to *timeoutFail*, and that applies
+both for instructions added inside of the *flatMap* after *timeoutFail*, and outside after the *flatMap* call. 
 
 
-To make this a little clearer, let's go through the takeNextMessageOrTimeout method in more detail
+To make this a little clearer, let's go through the *takeNextMessageOrTimeout* method in more detail
 
 | Expression      | Type before           | Type after                      | Effect                                                                        |
 |-----------------|-----------------------|---------------------------------|-------------------------------------------------------------------------------|
